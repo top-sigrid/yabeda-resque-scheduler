@@ -61,17 +61,17 @@ module Yabeda
           timestamp = Time.now + 3600
           schedule_delayed_job(TestJob, timestamp: timestamp)
           schedule_delayed_job(AnotherTestJob, timestamp: timestamp)
-          schedule_delayed_job(MailerJob, timestamp: timestamp)
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
           schedule_delayed_job(TestJob, timestamp: timestamp + 100)
 
           result = DelayedJobCounter.count_delayed_jobs
 
-          assert_equal({"default" => 2, "high" => 1, "mailers" => 1}, result.by_queue)
-          assert_equal({"TestJob" => 2, "AnotherTestJob" => 1, "MailerJob" => 1}, result.by_job_class)
+          assert_equal({"default" => 2, "high" => 1, "active_job_queue" => 1}, result.by_queue)
+          assert_equal({"TestJob" => 2, "AnotherTestJob" => 1, "TestActiveJob" => 1}, result.by_job_class)
           assert_equal 3, result.by_queue_and_class.keys.size
           assert_equal 2, result.by_queue_and_class[["default", "TestJob"]]
           assert_equal 1, result.by_queue_and_class[["high", "AnotherTestJob"]]
-          assert_equal 1, result.by_queue_and_class[["mailers", "MailerJob"]]
+          assert_equal 1, result.by_queue_and_class[["active_job_queue", "TestActiveJob"]]
         end
 
         def test_count_delayed_jobs_counts_active_jobs
@@ -108,7 +108,7 @@ module Yabeda
 
           result = DelayedJobCounter.count_delayed_jobs
 
-          assert_equal({"default" => 1, "active_job_queue" => 1, "notifications" => 1}, result.by_queue)
+          assert_equal({"default" => 1, "active_job_queue" => 1, "another_queue" => 1}, result.by_queue)
           assert_equal({"TestJob" => 1, "TestActiveJob" => 1, "AnotherActiveJob" => 1}, result.by_job_class)
           assert_equal 3, result.by_queue_and_class.keys.size
         end
@@ -132,12 +132,12 @@ module Yabeda
           timestamp = Time.now + 3600
           schedule_delayed_job(TestJob, timestamp: timestamp)
           schedule_delayed_job(AnotherTestJob, timestamp: timestamp, queue: "default")
-          schedule_delayed_job(MailerJob, timestamp: timestamp, queue: "default")
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp, queue: "default")
 
           result = DelayedJobCounter.count_delayed_jobs
 
           assert_equal({"default" => 3}, result.by_queue, "Should aggregate all jobs in default queue")
-          assert_equal({"TestJob" => 1, "AnotherTestJob" => 1, "MailerJob" => 1}, result.by_job_class)
+          assert_equal({"TestJob" => 1, "AnotherTestJob" => 1, "TestActiveJob" => 1}, result.by_job_class)
           assert_equal 3, result.by_queue_and_class.keys.size
         end
 
@@ -162,7 +162,7 @@ module Yabeda
 
           result = DelayedJobCounter.count_delayed_jobs
 
-          assert_equal({"default" => 1, "high" => 1, "notifications" => 1}, result.by_queue)
+          assert_equal({"default" => 1, "high" => 1, "another_queue" => 1}, result.by_queue)
           assert_equal({"TestJob" => 1, "AnotherTestJob" => 1, "AnotherActiveJob" => 1}, result.by_job_class)
           assert_equal 3, result.by_queue_and_class.keys.size
         end

@@ -44,12 +44,12 @@ module Yabeda
           timestamp = Time.now + 3600
           ::Resque.enqueue_at(timestamp, TestJob)
           ::Resque.enqueue_at(timestamp, AnotherTestJob)
-          ::Resque.enqueue_at(timestamp + 100, MailerJob)
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp + 100)
 
           result = DelayedJobCounter.count_delayed_jobs
 
-          assert_equal({"default" => 1, "high" => 1, "mailers" => 1}, result.by_queue)
-          assert_equal({"TestJob" => 1, "AnotherTestJob" => 1, "MailerJob" => 1}, result.by_job_class)
+          assert_equal({"default" => 1, "high" => 1, "active_job_queue" => 1}, result.by_queue)
+          assert_equal({"TestJob" => 1, "AnotherTestJob" => 1, "TestActiveJob" => 1}, result.by_job_class)
         end
 
         def test_schedule_delayed_job_helper_matches_real_enqueue_at
@@ -125,7 +125,7 @@ module Yabeda
 
           result = DelayedJobCounter.count_delayed_jobs
 
-          assert_equal({"active_job_queue" => 2, "notifications" => 1}, result.by_queue)
+          assert_equal({"active_job_queue" => 2, "another_queue" => 1}, result.by_queue)
           assert_equal({"TestActiveJob" => 2, "AnotherActiveJob" => 1}, result.by_job_class)
         end
 
@@ -157,7 +157,7 @@ module Yabeda
           assert_equal 1, result.by_queue["default"]
           assert_equal 1, result.by_queue["high"]
           assert_equal 1, result.by_queue["active_job_queue"]
-          assert_equal 1, result.by_queue["notifications"]
+          assert_equal 1, result.by_queue["another_queue"]
         end
       end
     end

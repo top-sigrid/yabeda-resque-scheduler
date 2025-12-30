@@ -17,14 +17,7 @@ class TestActiveJob < ActiveJob::Base
 end
 
 class AnotherActiveJob < ActiveJob::Base
-  queue_as :notifications
-
-  def perform(*args)
-  end
-end
-
-class ParserTestActiveJob < ActiveJob::Base
-  queue_as :parser_test_queue
+  queue_as :another_queue
 
   def perform(*args)
   end

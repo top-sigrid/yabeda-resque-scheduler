@@ -14,10 +14,3 @@ class AnotherTestJob
   def self.perform(*args)
   end
 end
-
-class MailerJob
-  @queue = :mailers
-
-  def self.perform(*args)
-  end
-end

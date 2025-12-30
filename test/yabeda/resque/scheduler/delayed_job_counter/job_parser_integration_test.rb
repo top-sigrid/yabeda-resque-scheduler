@@ -41,48 +41,48 @@ module Yabeda
 
           def test_parse_real_native_job_without_args
             timestamp = Time.now + 3600
-            ::Resque.enqueue_at(timestamp, MailerJob)
+            ::Resque.enqueue_at(timestamp, AnotherTestJob)
 
             job = fetch_first_delayed_job(timestamp)
             result = JobParser.parse(job)
 
-            assert_equal "mailers", result[:queue]
-            assert_equal "MailerJob", result[:job_class]
+            assert_equal "high", result[:queue]
+            assert_equal "AnotherTestJob", result[:job_class]
           end
 
           # === ActiveJob Tests ===
 
           def test_parse_real_active_job
             timestamp = Time.now + 3600
-            ParserTestActiveJob.set(wait_until: timestamp).perform_later("arg1", "arg2")
+            TestActiveJob.set(wait_until: timestamp).perform_later("arg1", "arg2")
 
             job = fetch_first_delayed_job(timestamp)
             result = JobParser.parse(job)
 
-            assert_equal "parser_test_queue", result[:queue], "Should extract queue_name from ActiveJob payload"
-            assert_equal "ParserTestActiveJob", result[:job_class], "Should extract job_class from ActiveJob payload"
+            assert_equal "active_job_queue", result[:queue], "Should extract queue_name from ActiveJob payload"
+            assert_equal "TestActiveJob", result[:job_class], "Should extract job_class from ActiveJob payload"
           end
 
           def test_parse_real_active_job_without_args
             timestamp = Time.now + 3600
-            ParserTestActiveJob.set(wait_until: timestamp).perform_later
+            TestActiveJob.set(wait_until: timestamp).perform_later
 
             job = fetch_first_delayed_job(timestamp)
             result = JobParser.parse(job)
 
-            assert_equal "parser_test_queue", result[:queue]
-            assert_equal "ParserTestActiveJob", result[:job_class]
+            assert_equal "active_job_queue", result[:queue]
+            assert_equal "TestActiveJob", result[:job_class]
           end
 
           def test_parse_real_active_job_with_queue_override
             timestamp = Time.now + 3600
-            ParserTestActiveJob.set(wait_until: timestamp, queue: "overridden_queue").perform_later
+            TestActiveJob.set(wait_until: timestamp, queue: "critical").perform_later
 
             job = fetch_first_delayed_job(timestamp)
             result = JobParser.parse(job)
 
-            assert_equal "overridden_queue", result[:queue], "Should extract overridden queue from ActiveJob"
-            assert_equal "ParserTestActiveJob", result[:job_class]
+            assert_equal "critical", result[:queue], "Should extract overridden queue from ActiveJob"
+            assert_equal "TestActiveJob", result[:job_class]
           end
 
           # === Verify JobParser extracts same data as stored ===
@@ -100,7 +100,7 @@ module Yabeda
 
           def test_parse_active_job_extracts_exact_stored_values
             timestamp = Time.now + 3600
-            ParserTestActiveJob.set(wait_until: timestamp).perform_later
+            TestActiveJob.set(wait_until: timestamp).perform_later
 
             job = fetch_first_delayed_job(timestamp)
             payload = job["args"][0]
