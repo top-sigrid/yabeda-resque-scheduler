@@ -20,3 +20,11 @@ require_relative "support/redis_helper"
 require_relative "support/resque_helper"
 require_relative "support/test_jobs"
 require_relative "support/test_active_jobs"
+
+# Include helpers in all tests
+module Minitest
+  class Test
+    include RedisHelper
+    include ResqueHelper
+  end
+end

@@ -7,8 +7,6 @@ module Yabeda
     module Scheduler
       module DelayedJobCounter
         class JobParserIntegrationTest < Minitest::Test
-          include RedisHelper
-
           def setup
             flush_redis
           end

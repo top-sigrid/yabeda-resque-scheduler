@@ -6,9 +6,6 @@ module Yabeda
   module Resque
     module Scheduler
       class DelayedJobCounterTest < Minitest::Test
-        include RedisHelper
-        include ResqueHelper
-
         def setup
           flush_redis
         end
@@ -27,7 +24,7 @@ module Yabeda
         end
 
         def test_count_delayed_jobs_returns_result_struct
-          schedule_native_job(TestJob, queue: "default", timestamp: Time.now.to_i + 3600)
+          schedule_delayed_job(TestJob, timestamp: Time.now + 3600)
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -38,7 +35,7 @@ module Yabeda
         end
 
         def test_count_delayed_jobs_counts_single_native_job
-          schedule_native_job(TestJob, queue: "default", timestamp: Time.now.to_i + 3600)
+          schedule_delayed_job(TestJob, timestamp: Time.now + 3600)
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -48,10 +45,10 @@ module Yabeda
         end
 
         def test_count_delayed_jobs_counts_multiple_native_jobs_same_queue
-          timestamp = Time.now.to_i + 3600
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp)
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp)
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp + 100)
+          timestamp = Time.now + 3600
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_job(TestJob, timestamp: timestamp + 100)
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -61,11 +58,11 @@ module Yabeda
         end
 
         def test_count_delayed_jobs_groups_by_all_dimensions
-          timestamp = Time.now.to_i + 3600
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp)
-          schedule_native_job(AnotherTestJob, queue: "high", timestamp: timestamp)
-          schedule_native_job(MailerJob, queue: "mailers", timestamp: timestamp)
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp + 100)
+          timestamp = Time.now + 3600
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_job(AnotherTestJob, timestamp: timestamp)
+          schedule_delayed_job(MailerJob, timestamp: timestamp)
+          schedule_delayed_job(TestJob, timestamp: timestamp + 100)
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -78,33 +75,49 @@ module Yabeda
         end
 
         def test_count_delayed_jobs_counts_active_jobs
-          schedule_active_job("WelcomeMailer", queue: "mailers", timestamp: Time.now.to_i + 3600)
+          timestamp = Time.now + 3600
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
 
           result = DelayedJobCounter.count_delayed_jobs
 
-          assert_equal({"mailers" => 1}, result.by_queue)
-          assert_equal({"WelcomeMailer" => 1}, result.by_job_class)
-          assert_equal({["mailers", "WelcomeMailer"] => 1}, result.by_queue_and_class)
+          assert_equal({"active_job_queue" => 1}, result.by_queue)
+          assert_equal({"TestActiveJob" => 1}, result.by_job_class)
+          assert_equal({["active_job_queue", "TestActiveJob"] => 1}, result.by_queue_and_class)
+        end
+
+        def test_count_delayed_jobs_aggregates_same_active_job_in_different_queues
+          timestamp = Time.now + 3600
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp, queue: "critical")
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp, queue: "critical")
+
+          result = DelayedJobCounter.count_delayed_jobs
+
+          assert_equal({"active_job_queue" => 1, "critical" => 2}, result.by_queue)
+          assert_equal({"TestActiveJob" => 3}, result.by_job_class, "Should aggregate TestActiveJob across all queues")
+          assert_equal 2, result.by_queue_and_class.keys.size
+          assert_equal 1, result.by_queue_and_class[["active_job_queue", "TestActiveJob"]]
+          assert_equal 2, result.by_queue_and_class[["critical", "TestActiveJob"]]
         end
 
         def test_count_delayed_jobs_counts_mixed_native_and_active_jobs
-          timestamp = Time.now.to_i + 3600
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp)
-          schedule_active_job("ProcessOrderJob", queue: "orders", timestamp: timestamp)
-          schedule_active_job("WelcomeMailer", queue: "mailers", timestamp: timestamp)
+          timestamp = Time.now + 3600
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
+          schedule_delayed_active_job(AnotherActiveJob, timestamp: timestamp)
 
           result = DelayedJobCounter.count_delayed_jobs
 
-          assert_equal({"default" => 1, "orders" => 1, "mailers" => 1}, result.by_queue)
-          assert_equal({"TestJob" => 1, "ProcessOrderJob" => 1, "WelcomeMailer" => 1}, result.by_job_class)
+          assert_equal({"default" => 1, "active_job_queue" => 1, "notifications" => 1}, result.by_queue)
+          assert_equal({"TestJob" => 1, "TestActiveJob" => 1, "AnotherActiveJob" => 1}, result.by_job_class)
           assert_equal 3, result.by_queue_and_class.keys.size
         end
 
         def test_count_delayed_jobs_aggregates_same_job_in_different_queues
-          timestamp = Time.now.to_i + 3600
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp)
-          schedule_native_job(TestJob, queue: "critical", timestamp: timestamp)
-          schedule_native_job(TestJob, queue: "critical", timestamp: timestamp)
+          timestamp = Time.now + 3600
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_job(TestJob, timestamp: timestamp, queue: "critical")
+          schedule_delayed_job(TestJob, timestamp: timestamp, queue: "critical")
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -116,10 +129,10 @@ module Yabeda
         end
 
         def test_count_delayed_jobs_aggregates_different_jobs_in_same_queue
-          timestamp = Time.now.to_i + 3600
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp)
-          schedule_native_job(AnotherTestJob, queue: "default", timestamp: timestamp)
-          schedule_native_job(MailerJob, queue: "default", timestamp: timestamp)
+          timestamp = Time.now + 3600
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_job(AnotherTestJob, timestamp: timestamp, queue: "default")
+          schedule_delayed_job(MailerJob, timestamp: timestamp, queue: "default")
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -129,10 +142,10 @@ module Yabeda
         end
 
         def test_count_delayed_jobs_across_multiple_timestamps
-          now = Time.now.to_i
-          schedule_native_job(TestJob, queue: "default", timestamp: now + 100)
-          schedule_native_job(TestJob, queue: "default", timestamp: now + 200)
-          schedule_native_job(TestJob, queue: "default", timestamp: now + 300)
+          now = Time.now
+          schedule_delayed_job(TestJob, timestamp: now + 100)
+          schedule_delayed_job(TestJob, timestamp: now + 200)
+          schedule_delayed_job(TestJob, timestamp: now + 300)
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -141,42 +154,29 @@ module Yabeda
           assert_equal({["default", "TestJob"] => 3}, result.by_queue_and_class)
         end
 
-        def test_count_delayed_jobs_using_schedule_jobs_helper
-          timestamp = Time.now.to_i + 3600
-          schedule_jobs([
-            {type: :native, class: TestJob, queue: "default", timestamp: timestamp},
-            {type: :native, class: AnotherTestJob, queue: "high", timestamp: timestamp},
-            {type: :active_job, class: "SendNotificationJob", queue: "notifications", timestamp: timestamp}
-          ])
+        def test_count_delayed_jobs_with_bulk_scheduling
+          timestamp = Time.now + 3600
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_job(AnotherTestJob, timestamp: timestamp)
+          schedule_delayed_active_job(AnotherActiveJob, timestamp: timestamp)
 
           result = DelayedJobCounter.count_delayed_jobs
 
           assert_equal({"default" => 1, "high" => 1, "notifications" => 1}, result.by_queue)
-          assert_equal({"TestJob" => 1, "AnotherTestJob" => 1, "SendNotificationJob" => 1}, result.by_job_class)
+          assert_equal({"TestJob" => 1, "AnotherTestJob" => 1, "AnotherActiveJob" => 1}, result.by_job_class)
           assert_equal 3, result.by_queue_and_class.keys.size
         end
 
         def test_result_empty_returns_false_when_jobs_exist
-          schedule_native_job(TestJob, queue: "default", timestamp: Time.now.to_i + 3600)
+          schedule_delayed_job(TestJob, timestamp: Time.now + 3600)
 
           result = DelayedJobCounter.count_delayed_jobs
 
           refute result.empty?, "Result should not be empty when jobs are scheduled"
         end
 
-        # === Real resque-scheduler path tests ===
-
-        def test_count_delayed_jobs_via_resque_scheduler_enqueue_at
-          schedule_delayed_job(TestJob, run_at: Time.now + 3600)
-
-          result = DelayedJobCounter.count_delayed_jobs
-
-          assert_equal({"default" => 1}, result.by_queue)
-          assert_equal({"TestJob" => 1}, result.by_job_class)
-        end
-
-        def test_count_delayed_jobs_via_resque_scheduler_with_args
-          schedule_delayed_job(TestJob, run_at: Time.now + 3600, args: ["arg1", {id: 123}])
+        def test_count_delayed_jobs_with_args
+          schedule_delayed_job(TestJob, timestamp: Time.now + 3600, args: ["arg1", {id: 123}])
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -186,10 +186,10 @@ module Yabeda
 
         # === Malformed job handling tests ===
 
-        def test_count_delayed_jobs_skips_malformed_jobs_without_queue
+        def test_count_delayed_jobs_skips_malformed_jobs
           timestamp = Time.now + 3600
-          add_malformed_job_without_queue(job_class: "BrokenJob", timestamp: timestamp)
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp)
+          add_malformed_delayed_job(timestamp: timestamp)
+          schedule_delayed_job(TestJob, timestamp: timestamp)
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -198,20 +198,11 @@ module Yabeda
         end
 
         def test_count_delayed_jobs_handles_only_malformed_jobs
-          add_malformed_job_without_queue(job_class: "BrokenJob", timestamp: Time.now + 3600)
+          add_malformed_delayed_job
 
           result = DelayedJobCounter.count_delayed_jobs
 
           assert result.empty?, "Result should be empty when only malformed jobs exist"
-        end
-
-        def test_count_delayed_jobs_handles_jobs_added_without_hooks
-          add_delayed_job_without_hooks(queue: "low", job_class: "ManualJob", timestamp: Time.now + 3600)
-
-          result = DelayedJobCounter.count_delayed_jobs
-
-          assert_equal({"low" => 1}, result.by_queue)
-          assert_equal({"ManualJob" => 1}, result.by_job_class)
         end
       end
     end

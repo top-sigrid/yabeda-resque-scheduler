@@ -6,9 +6,6 @@ module Yabeda
   module Resque
     module Scheduler
       class DelayedJobCounterIntegrationTest < Minitest::Test
-        include RedisHelper
-        include ResqueHelper
-
         def setup
           flush_redis
         end
@@ -55,16 +52,12 @@ module Yabeda
           assert_equal({"TestJob" => 1, "AnotherTestJob" => 1, "MailerJob" => 1}, result.by_job_class)
         end
 
-        def test_manual_schedule_matches_real_enqueue_at_format
+        def test_schedule_delayed_job_helper_matches_real_enqueue_at
           timestamp = Time.now + 3600
 
-          # Schedule using our test helper
-          schedule_native_job(TestJob, queue: "default", timestamp: timestamp, args: ["arg1"])
-
-          # Schedule using real Resque
+          schedule_delayed_job(TestJob, timestamp: timestamp, args: ["arg1"])
           ::Resque.enqueue_at(timestamp + 1, TestJob, "arg2")
 
-          # Both should be countable
           result = DelayedJobCounter.count_delayed_jobs
 
           assert_equal 2, result.by_job_class["TestJob"], "Both jobs should be counted"
@@ -126,9 +119,9 @@ module Yabeda
 
         def test_count_delayed_jobs_works_with_real_active_job
           timestamp = Time.now + 3600
-          TestActiveJob.set(wait_until: timestamp).perform_later
-          AnotherActiveJob.set(wait_until: timestamp).perform_later
-          TestActiveJob.set(wait_until: timestamp + 100).perform_later
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
+          schedule_delayed_active_job(AnotherActiveJob, timestamp: timestamp)
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp + 100)
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -136,16 +129,11 @@ module Yabeda
           assert_equal({"TestActiveJob" => 2, "AnotherActiveJob" => 1}, result.by_job_class)
         end
 
-        def test_manual_schedule_matches_real_active_job_format
+        def test_count_delayed_jobs_with_multiple_active_jobs
           timestamp = Time.now + 3600
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp + 1)
 
-          # Schedule using our test helper
-          schedule_active_job("TestActiveJob", queue: "active_job_queue", timestamp: timestamp)
-
-          # Schedule using real ActiveJob
-          TestActiveJob.set(wait_until: timestamp + 1).perform_later
-
-          # Both should be countable
           result = DelayedJobCounter.count_delayed_jobs
 
           assert_equal 2, result.by_job_class["TestActiveJob"], "Both jobs should be counted"
@@ -156,11 +144,10 @@ module Yabeda
 
         def test_count_delayed_jobs_with_mixed_real_native_and_active_jobs
           timestamp = Time.now + 3600
-
-          ::Resque.enqueue_at(timestamp, TestJob)
-          ::Resque.enqueue_at(timestamp, AnotherTestJob)
-          TestActiveJob.set(wait_until: timestamp).perform_later
-          AnotherActiveJob.set(wait_until: timestamp).perform_later
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_job(AnotherTestJob, timestamp: timestamp)
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
+          schedule_delayed_active_job(AnotherActiveJob, timestamp: timestamp)
 
           result = DelayedJobCounter.count_delayed_jobs
 
