@@ -18,7 +18,7 @@ module Yabeda
 
         def test_real_enqueue_at_stores_job_with_expected_structure
           timestamp = Time.now + 3600
-          ::Resque.enqueue_at(timestamp, TestJob, "arg1", "arg2")
+          schedule_delayed_job(TestJob, timestamp: timestamp, args: ["arg1", "arg2"])
 
           stored_jobs = ::Resque.redis.lrange("delayed:#{timestamp.to_i}", 0, -1)
           assert_equal 1, stored_jobs.size, "Should have one job stored"
@@ -31,7 +31,7 @@ module Yabeda
 
         def test_real_enqueue_at_with_queue_overrides_default_queue
           timestamp = Time.now + 3600
-          ::Resque.enqueue_at_with_queue("critical", timestamp, TestJob, "arg1")
+          schedule_delayed_job(TestJob, timestamp: timestamp, queue: "critical", args: ["arg1"])
 
           stored_jobs = ::Resque.redis.lrange("delayed:#{timestamp.to_i}", 0, -1)
           job = ::Resque.decode(stored_jobs.first)
@@ -42,8 +42,8 @@ module Yabeda
 
         def test_count_delayed_jobs_works_with_real_enqueue_at
           timestamp = Time.now + 3600
-          ::Resque.enqueue_at(timestamp, TestJob)
-          ::Resque.enqueue_at(timestamp, AnotherTestJob)
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_job(AnotherTestJob, timestamp: timestamp)
           schedule_delayed_active_job(TestActiveJob, timestamp: timestamp + 100)
 
           result = DelayedJobCounter.count_delayed_jobs
@@ -56,7 +56,7 @@ module Yabeda
           timestamp = Time.now + 3600
 
           schedule_delayed_job(TestJob, timestamp: timestamp, args: ["arg1"])
-          ::Resque.enqueue_at(timestamp + 1, TestJob, "arg2")
+          schedule_delayed_job(TestJob, timestamp: timestamp + 1, args: ["arg2"])
 
           result = DelayedJobCounter.count_delayed_jobs
 
@@ -65,7 +65,7 @@ module Yabeda
 
         def test_inspect_real_native_job_structure
           timestamp = Time.now + 3600
-          ::Resque.enqueue_at(timestamp, TestJob, {user_id: 123})
+          schedule_delayed_job(TestJob, timestamp: timestamp, args: [{user_id: 123}])
 
           stored_jobs = ::Resque.redis.lrange("delayed:#{timestamp.to_i}", 0, -1)
           job = ::Resque.decode(stored_jobs.first)
@@ -81,7 +81,7 @@ module Yabeda
 
         def test_real_active_job_enqueue_at_stores_job_with_expected_structure
           timestamp = Time.now + 3600
-          TestActiveJob.set(wait_until: timestamp).perform_later("arg1", "arg2")
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp, args: ["arg1", "arg2"])
 
           stored_jobs = ::Resque.redis.lrange("delayed:#{timestamp.to_i}", 0, -1)
           assert_equal 1, stored_jobs.size, "Should have one job stored"
@@ -105,7 +105,7 @@ module Yabeda
 
         def test_inspect_real_active_job_structure
           timestamp = Time.now + 3600
-          TestActiveJob.set(wait_until: timestamp).perform_later
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
 
           stored_jobs = ::Resque.redis.lrange("delayed:#{timestamp.to_i}", 0, -1)
           job = ::Resque.decode(stored_jobs.first)

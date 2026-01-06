@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-# Sample test job classes for native Resque jobs
 class TestJob
   @queue = :default
 

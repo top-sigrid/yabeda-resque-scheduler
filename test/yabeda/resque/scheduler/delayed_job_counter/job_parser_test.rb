@@ -25,7 +25,7 @@ module Yabeda
               "class" => "ActiveJob::QueueAdapters::ResqueAdapter::JobWrapper",
               "queue" => "default",
               "args" => [{
-                "job_class" => "WelcomeMailer",
+                "job_class" => "SomeJob",
                 "job_id" => "abc-123",
                 "queue_name" => "mailers",
                 "arguments" => []
@@ -35,7 +35,7 @@ module Yabeda
             result = JobParser.parse(job)
 
             assert_equal "mailers", result[:queue], "Should use queue_name from ActiveJob payload"
-            assert_equal "WelcomeMailer", result[:job_class]
+            assert_equal "SomeJob", result[:job_class]
           end
 
           def test_parse_active_job_falls_back_to_outer_queue_when_queue_name_missing
@@ -102,13 +102,13 @@ module Yabeda
             assert_nil result[:job_class]
           end
 
-          def test_extract_queue_returns_only_queue
+          def test_extract_queue_returns_queue
             job = {"class" => "TestJob", "queue" => "critical", "args" => []}
 
             assert_equal "critical", JobParser.extract_queue(job)
           end
 
-          def test_extract_job_class_returns_only_class
+          def test_extract_job_class_returns_class
             job = {"class" => "TestJob", "queue" => "critical", "args" => []}
 
             assert_equal "TestJob", JobParser.extract_job_class(job)

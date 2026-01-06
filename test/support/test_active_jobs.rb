@@ -8,7 +8,6 @@ ActiveJob::Base.queue_adapter = :resque
 # Silence ActiveJob logging in tests
 ActiveJob::Base.logger = Logger.new(nil)
 
-# Sample test ActiveJob classes
 class TestActiveJob < ActiveJob::Base
   queue_as :active_job_queue
 

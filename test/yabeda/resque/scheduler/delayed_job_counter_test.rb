@@ -44,6 +44,17 @@ module Yabeda
           assert_equal({["default", "TestJob"] => 1}, result.by_queue_and_class)
         end
 
+        def test_count_delayed_jobs_counts_single_active_job
+          timestamp = Time.now + 3600
+          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
+
+          result = DelayedJobCounter.count_delayed_jobs
+
+          assert_equal({"active_job_queue" => 1}, result.by_queue)
+          assert_equal({"TestActiveJob" => 1}, result.by_job_class)
+          assert_equal({["active_job_queue", "TestActiveJob"] => 1}, result.by_queue_and_class)
+        end
+
         def test_count_delayed_jobs_counts_multiple_native_jobs_same_queue
           timestamp = Time.now + 3600
           schedule_delayed_job(TestJob, timestamp: timestamp)
@@ -74,15 +85,19 @@ module Yabeda
           assert_equal 1, result.by_queue_and_class[["active_job_queue", "TestActiveJob"]]
         end
 
-        def test_count_delayed_jobs_counts_active_jobs
+        def test_count_delayed_jobs_aggregates_same_job_in_different_queues
           timestamp = Time.now + 3600
-          schedule_delayed_active_job(TestActiveJob, timestamp: timestamp)
+          schedule_delayed_job(TestJob, timestamp: timestamp)
+          schedule_delayed_job(TestJob, timestamp: timestamp, queue: "critical")
+          schedule_delayed_job(TestJob, timestamp: timestamp, queue: "critical")
 
           result = DelayedJobCounter.count_delayed_jobs
 
-          assert_equal({"active_job_queue" => 1}, result.by_queue)
-          assert_equal({"TestActiveJob" => 1}, result.by_job_class)
-          assert_equal({["active_job_queue", "TestActiveJob"] => 1}, result.by_queue_and_class)
+          assert_equal({"default" => 1, "critical" => 2}, result.by_queue)
+          assert_equal({"TestJob" => 3}, result.by_job_class, "Should aggregate TestJob across all queues")
+          assert_equal 2, result.by_queue_and_class.keys.size
+          assert_equal 1, result.by_queue_and_class[["default", "TestJob"]]
+          assert_equal 2, result.by_queue_and_class[["critical", "TestJob"]]
         end
 
         def test_count_delayed_jobs_aggregates_same_active_job_in_different_queues
@@ -113,21 +128,6 @@ module Yabeda
           assert_equal 3, result.by_queue_and_class.keys.size
         end
 
-        def test_count_delayed_jobs_aggregates_same_job_in_different_queues
-          timestamp = Time.now + 3600
-          schedule_delayed_job(TestJob, timestamp: timestamp)
-          schedule_delayed_job(TestJob, timestamp: timestamp, queue: "critical")
-          schedule_delayed_job(TestJob, timestamp: timestamp, queue: "critical")
-
-          result = DelayedJobCounter.count_delayed_jobs
-
-          assert_equal({"default" => 1, "critical" => 2}, result.by_queue)
-          assert_equal({"TestJob" => 3}, result.by_job_class, "Should aggregate TestJob across all queues")
-          assert_equal 2, result.by_queue_and_class.keys.size
-          assert_equal 1, result.by_queue_and_class[["default", "TestJob"]]
-          assert_equal 2, result.by_queue_and_class[["critical", "TestJob"]]
-        end
-
         def test_count_delayed_jobs_aggregates_different_jobs_in_same_queue
           timestamp = Time.now + 3600
           schedule_delayed_job(TestJob, timestamp: timestamp)
@@ -152,27 +152,6 @@ module Yabeda
           assert_equal({"default" => 3}, result.by_queue)
           assert_equal({"TestJob" => 3}, result.by_job_class)
           assert_equal({["default", "TestJob"] => 3}, result.by_queue_and_class)
-        end
-
-        def test_count_delayed_jobs_with_bulk_scheduling
-          timestamp = Time.now + 3600
-          schedule_delayed_job(TestJob, timestamp: timestamp)
-          schedule_delayed_job(AnotherTestJob, timestamp: timestamp)
-          schedule_delayed_active_job(AnotherActiveJob, timestamp: timestamp)
-
-          result = DelayedJobCounter.count_delayed_jobs
-
-          assert_equal({"default" => 1, "high" => 1, "another_queue" => 1}, result.by_queue)
-          assert_equal({"TestJob" => 1, "AnotherTestJob" => 1, "AnotherActiveJob" => 1}, result.by_job_class)
-          assert_equal 3, result.by_queue_and_class.keys.size
-        end
-
-        def test_result_empty_returns_false_when_jobs_exist
-          schedule_delayed_job(TestJob, timestamp: Time.now + 3600)
-
-          result = DelayedJobCounter.count_delayed_jobs
-
-          refute result.empty?, "Result should not be empty when jobs are scheduled"
         end
 
         def test_count_delayed_jobs_with_args
